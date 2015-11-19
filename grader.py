@@ -138,10 +138,6 @@ for submission in submissions:
 			report.add("\t" + line)
 	report.add("")
 
-
-
-
-
 	#
 	# crawl for functions
 	# Look for "{" in each file and the first line of text that preceeds the line with "{"
@@ -204,7 +200,6 @@ for submission in submissions:
 		#TODO handle /* */ comments
 		i = i + 1
 	
-
 	# Issue checker: If source file name does not match the class
 	if not mainClass == javaName:
 		issues.append("Java file name: \"{0}\" does not match class name : \"{1}\"!".format(javaName, mainClass))
@@ -217,7 +212,7 @@ for submission in submissions:
 	report.add("------ Main class -----")
 	report.add("\tName = {0}".format(mainClass))
 
-	# Report on the function
+	# Report on the functions
 	report.add("")
 	report.add("------ FUNCTIONS ----- (count={0})".format(len(functions)))
 	i = 1
@@ -235,6 +230,7 @@ for submission in submissions:
 		for line in comment:
 			report.add("\t\t"+line.strip())
 		i = i + 1
+	
 	# If enabled, append the source code to the end of the report.
 	if printSrc:
 		report.add("")
@@ -243,6 +239,3 @@ for submission in submissions:
 		for line in lines:
 			report.add(line)
 	report.submit()
-
-
-		
