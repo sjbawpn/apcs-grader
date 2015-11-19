@@ -6,20 +6,31 @@ import subprocess
 
 parser = OptionParser()
 parser.add_option("-l", "--lab", dest="labname", help="assignment to grade", metavar="LAB")
-
-#TODO Use these options instead of the hard code booleans (debug and printSrc)
-#parser.add_option("-d", "--debug", dest="debug", help="Enable debug mode: prints report to the command line", metavar="DEBUG")
-#parser.add_option("-is", "--includesource", dest="incSrc", help="Append the assignemnts source code at the end of the report", metavar="INCSRC")
+parser.add_option("-z", "--zipfile", dest="zipfile", help="zip file to extract", metavar="ZIP")
+parser.add_option("-v", "--verbose", dest="verbose", action="store_true", default=False, help="Enable vebose mode: prints report to the command line", metavar="DEBUG")
+parser.add_option("-a", "--addsource", dest="addsource", action="store_true", default=False, help="Append the assignemnt's source code at the end of the report", metavar="ADDSRC")
 
 (options, args) = parser.parse_args()
 
-#TODO Use options for the next two settings.
-# Enabling debug prints the report to the command line
-debug = False
+if options.labname is None:
+	parser.error("labname not given")
 
-# Enabling printSrc appends the java source file
-printSrc = True
+currdir = os.getcwd()
+submissionsdir = os.path.join(currdir,"submissions")
 
+if not options.zipfile is None:
+	zippath = options.zipfile
+	if not os.path.isabs(options.zipfile):
+		zippath = os.path.join(currdir, options.zipfile)
+	if not os.path.exists(zippath):
+		 parser.error("{0} does not exist".format(zippath))
+	if not os.path.splitext(zippath)[1] == ".zip":
+		parser.error("{0} not a zip file".format(zippath))
+	if not os.path.exists(submissionsdir):
+		os.mkdir(submissionsdir)
+	args = ["unzip","-d", submissionsdir, zippath]
+	subprocess.call(args)
+		
 # Class to represent the student's report file.
 # methods: flag(), add(message), submit()
 class Report:
@@ -38,7 +49,7 @@ class Report:
 	
 	# add a line to the report
 	def add(self, message):
-		if debug:
+		if options.verbose:
 			print(message)
 		self.content.append(message + "\n")
 	
@@ -56,11 +67,9 @@ class Report:
 		with file(os.path.join(currdir,"reports", self.filename), "w") as f :
 			f.writelines(self.content)
 
-#TODO logic to parse code could could be moved to a CodeParser class
+#TODO logic to parse code be moved to a CodeParser class
 	
-currdir = os.getcwd()
 
-#TODO Create dirs and extract assignments programatically.
 
 # directory where the extracted assignments reside
 submissionsdir = os.path.join(currdir,"submissions")
@@ -242,7 +251,7 @@ for submission in submissions:
 		i = i + 1
 	
 	# If enabled, append the source code to the end of the report.
-	if printSrc:
+	if options.addsource:
 		report.add("")
 		report.add("")
 		report.add("-"*20)
