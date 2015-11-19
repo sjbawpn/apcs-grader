@@ -124,7 +124,8 @@ for submission in submissions:
 	# This needs to be done once for the entire assignment
 	#TODO do this programatically. 
 	#TODO Should runner.sh be a python script? Keeping it outsite this script allows to re-compile an individual assignment without running the whole script.
-	subprocess.call([os.path.join(javadir, "runner.sh"), ">> build.log"])
+	args = [os.path.join(javadir, "runner.sh"), ">>", "build.log"]
+	subprocess.call(args)
 	os.chdir(currdir)
 
 	# Report the unit test results. These are stored in result.log in the "java" sub directory

@@ -1,7 +1,6 @@
 #APCS Grader
 ============
-
-## Note: runner.sh and TestJunit.java need to be modified for each assignments
+## Note: runner.sh and TestJunit.java need to be modified for each lab
 ### before running grader.py:
 1. Create a directory called "submissions"
 2. Extract your submissions in the "submissions" directory
