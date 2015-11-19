@@ -62,7 +62,6 @@ submissionsdir = os.path.join(currdir,"submissions")
 # directory where the assignments will be compiled, run and unit tested 1 by 1.
 javadir = os.path.join(currdir,"java")
 
-
 submissions = os.listdir(submissionsdir)
 for submission in submissions:
 	fname, fext = os.path.splitext(submission)
@@ -141,9 +140,9 @@ for submission in submissions:
 	#
 	# crawl for functions
 	# Look for "{" in each file and the first line of text that preceeds the line with "{"
-	# (if the curly brace is not on it's own line, the function prototype is in that line)
-	# skip lines that start with words in the "blockedKeyworkds" list. (not exhaustive)
-	blockedKeywords = ["for", "while", "try", "catch", "if", "while", "class"]
+	# (if the curly brace is not on its own line, the function prototype is in that line)
+	# skip lines that start with words in the "ignoredKeyworkds" list. (not exhaustive)
+	ignoredKeywords = ["for", "while", "try", "catch", "if", "then", "while", "do", "class"]
 
 	i = 0;
 	while i < len(lines):
@@ -162,7 +161,7 @@ for submission in submissions:
 			func = line.replace("{", "") # remove "{" for readability
 		
 		words = func.replace("("," ").split()
-		if words[0] not in blockedKeywords:
+		if words[0] not in ignoredKeywords:
 			functions.append(func)
 		i = i + 1
 	
