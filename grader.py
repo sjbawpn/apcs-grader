@@ -57,13 +57,13 @@ currdir = os.getcwd()
 #TODO Create dirs and extract assignments programatically.
 
 # directory where the extracted assignments reside
-problemsdir = os.path.join(currdir,"problems")
+submissionsdir = os.path.join(currdir,"submissions")
 
 # directory where the assignments will be compiled, run and unit tested 1 by 1.
 javadir = os.path.join(currdir,"java")
 
 
-submissions = os.listdir(problemsdir)
+submissions = os.listdir(submissionsdir)
 for submission in submissions:
 	fname, fext = os.path.splitext(submission)
 	studentName, javaName, x = fname.split("_")
@@ -80,7 +80,7 @@ for submission in submissions:
 	mainClass = ""
 	functions = []
 	issues = []
-	with file(os.path.join(problemsdir, submission) ,"r") as f:
+	with file(os.path.join(submissionsdir, submission) ,"r") as f:
 		lines = f.readlines()
 
 	#
