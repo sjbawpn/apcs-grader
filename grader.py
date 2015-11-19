@@ -47,6 +47,12 @@ class Report:
 		if self.flagged:
 			self.filename = "FLAGGED_" + self.filename
 		currdir = os.getcwd()
+		reportsdir = os.path.join(currdir,"reports")
+
+		# If "reports" directory does not exist, create it
+		if not os.path.exits(reportsdir):
+			os.mkdir(reportsdir)
+
 		with file(os.path.join(currdir,"reports", self.filename), "w") as f :
 			f.writelines(self.content)
 
@@ -58,9 +64,13 @@ currdir = os.getcwd()
 
 # directory where the extracted assignments reside
 submissionsdir = os.path.join(currdir,"submissions")
+if not os.path.exists(submissionsdir):
+	sys.exit("could not find \"submissions\" directory")
 
 # directory where the assignments will be compiled, run and unit tested 1 by 1.
 javadir = os.path.join(currdir,"java")
+if not os.path.exists(javadir):
+	sys.exit("could not find \"java\" directory")
 
 submissions = os.listdir(submissionsdir)
 for submission in submissions:
