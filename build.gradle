@@ -1,0 +1,11 @@
+apply plugin: 'java'
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	compile "org.json:json:20131018"
+	testCompile group: 'junit', name: 'junit', version: '4.+'
+	testCompile files("libs/testHelp.jar")
+}
