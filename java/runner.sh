@@ -1,6 +1,6 @@
 #!/bin/bash
 
-src="SET YOUR SOURCE FILE HERE"
+src="FractionalCalculator.java"
 
 # Set your junit_path below and testHelp path below
 junit_path=/usr/share/java/junit4.jar
