@@ -1,7 +1,6 @@
 #APCS Grader
 ============
-## !! This project is not in a working state !!
-## Note: gradle and unzip must be installed and in your path for this program to work
+## Note: gradle, zip and unzip must be installed and in your path for this program to work
 Options:
 	-h, --help			show this help message and exit
 	-c CONFIG, --config=Config	Assignment config file (default=assignment.json)	

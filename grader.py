@@ -6,6 +6,8 @@ from optparse import OptionParser
 import subprocess
 import json
 from pprint import pprint
+from xml.dom import minidom
+
 
 def getPath(path):
 	currdir = os.getcwd()
@@ -13,6 +15,35 @@ def getPath(path):
 	if not os.path.isabs(result):
 		result = os.path.join(currdir, result)
 	return result
+
+def reportTestResults(report, results):
+	#<testsuite name="TestJunit" tests="1" skipped="0" failures="1" errors="0" timestamp="2015-11-23T21:53:33" hostname="crls" time="0.012">
+	report.add("------ Functional Results -----")
+	xmldoc = minidom.parse(results)
+	testsuite = xmldoc.getElementsByTagName("testsuite")[0]
+	tests = testsuite.attributes["tests"].value
+	skipped = testsuite.attributes["skipped"].value
+	failures = testsuite.attributes["failures"].value
+	errors = testsuite.attributes["errors"].value
+	report.add("\ttests={0}, skipped={1}, failures={2}, errors={3}".format(tests, skipped, failures, errors))
+
+	if int(failures) > 0 or int(errors) > 0:
+		report.add("\tFunctional Test Failed")
+
+	testcaseList = xmldoc.getElementsByTagName("testcase")
+	i = 1
+	for testcase in testcaseList:
+		name = testcase.attributes["name"].value
+		failures = testcase.getElementsByTagName("failure")
+		status = "Passed"
+		if len(failures) > 0:
+			status = "Failed"
+		report.add("\t{0}- \"{1}\" : {2}!".format(i, name, status))
+		
+		for failure in failures:
+			message = failure.attributes["message"].value
+			report.add("\t\tMessage: {0}".format(message))
+		i = i + 1
 
 parser = OptionParser()
 parser.add_option("-c", "--config", dest="config", help="assignment config file name (default=assignment.json)", default="assignment.json", metavar="CONFIG")
@@ -32,8 +63,8 @@ if "test" not in data:
 	sys.exit("Error: \"test\" section missing in config. No unit tests defined")
 submissionsdir = os.path.join(currdir,"submissions")
 if os.path.exists(submissionsdir):
-	delete = raw_input("submissions/ directory exists. Do you wish to delete it? (Y, N): ")
-	if delete.lower() == "y":
+	delete = raw_input("submissions/ directory exists. Do you wish to delete it (Y, N)? Y: ")
+	if delete.lower() != "n":
 		shutil.rmtree(submissionsdir)
 
 if "zip" in data:
@@ -65,7 +96,7 @@ class Report:
 	
 	# add a line to the report
 	def add(self, message):
-		if options.verbose:
+		if data["verbose"]:
 			print(message)
 		self.content.append(message + "\n")
 	
@@ -77,7 +108,7 @@ class Report:
 		reportsdir = os.path.join(currdir,"reports")
 
 		# If "reports" directory does not exist, create it
-		if not os.path.exits(reportsdir):
+		if not os.path.exists(reportsdir):
 			os.mkdir(reportsdir)
 
 		with file(os.path.join(currdir,"reports", self.filename), "w") as f :
@@ -95,8 +126,8 @@ if not os.path.exists(submissionsdir):
 # directory where the assignments will be compiled, run and unit tested 1 by 1.
 srcdir = os.path.join(currdir, "src")
 if os.path.exists(srcdir):
-	delete = raw_input("src/ directory exists and must be deleted before proceding. Delete? (Y, N): ")
-	if delete.lower() == "y":
+	delete = raw_input("src/ directory exists and must be deleted before proceding. Delete it (Y, N)? Y: ")
+	if delete.lower() != "n":
 		shutil.rmtree(srcdir)
 	else:
 		sys.exit("Program terminated")
@@ -123,7 +154,8 @@ for submission in submissions:
 	fname, fext = os.path.splitext(submission)
 	studentName, javaName, x = fname.split("_")
 	print(studentName)
-	report = Report(studentName.lower().replace(" ","_") + ".txt")
+	studentNameStr = studentName.lower().replace(" ","_")
+	report = Report(studentNameStr + ".txt")
 
 	if not fext == ".java":
 		report.add("ERROR: File extension: {0}, expected: .java".format(fext))
@@ -175,21 +207,41 @@ for submission in submissions:
 	# 
 	# Compile and run	
 	currdir = os.getcwd()
+	print "building..."
 	args = ["gradle", "build"]
 	subprocess.call(args)
+	junitFname = os.path.split(junitpath)[-1]
+	junitName = os.path.splitext(junitFname)[0]
+	# Parse the test results XML
+
+	buildPath = os.path.join(currdir, "build")
+	testResultsPath = os.path.join(buildPath, "test-results")
+	buildReportPath = os.path.join(buildPath, "reports/")
+
+
+	reportsdir = os.path.join(currdir,"reports")
+	detaileddir = os.path.join(reportsdir, "detailed")
+	# If "reports/detailed" directory does not exist, create it
+	if not os.path.exists(detaileddir):
+		os.makedirs(detaileddir)
+	zipFile = os.path.join(detaileddir, studentNameStr + ".zip")
+	args = ["zip", "-r", zipFile, buildReportPath]
+	subprocess.call(args)
+
+	print "cleaning..."
+	args = ["gradle", "clean"]
+	subprocess.call(args)
+	
+	junitResult = os.path.join(testResultsPath, "TEST-{0}.xml".format(junitName))
+	if os.path.exists(junitResult):
+		reportTestResults(report, junitResult)
+	else:
+		report.add("\tError: Could not find junit test results. Expected path: {0}".format(junitResult))
+		report.flag()
 
 	#TODO finsh up gradle integration. program has been migrated up till hre
-	sys.exit()
-
-	# Report the unit test results. These are stored in result.log in the "java" sub directory
-	report.add("------ Functional Results -----")
-	runlog = os.path.join(javadir,"result.log")
-	if os.path.exists(runlog):
-		with file(runlog, "r") as f:
-			res = f.readlines()
-		for line in res:
-			report.add("\t" + line)
 	report.add("")
+
 
 	#
 	# crawl for functions
@@ -285,10 +337,11 @@ for submission in submissions:
 		i = i + 1
 	
 	# If enabled, append the source code to the end of the report.
-	if options.addsource:
+	if data["addSrc"]:
 		report.add("")
 		report.add("")
 		report.add("-"*20)
 		for line in lines:
 			report.add(line)
+
 	report.submit()
