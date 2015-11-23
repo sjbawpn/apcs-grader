@@ -1,0 +1,8 @@
+{
+	"name" : "AngryDog",
+	"zip" : "APCS_DM_F15-Angry_dog_(SD)-2225.zip",
+	"supportFiles" : ["Dog.java", "LoudDog.java",  "PetSitter.java"],
+	"test" : "TestJunit.java",
+	"verbose" : false,
+	"addSrc" : true
+}

@@ -1,27 +1,43 @@
 #!/usr/bin/python
 import os
+import shutil
 import sys
 from optparse import OptionParser
 import subprocess
+import json
+from pprint import pprint
+
+def getPath(path):
+	currdir = os.getcwd()
+	result = path
+	if not os.path.isabs(result):
+		result = os.path.join(currdir, result)
+	return result
 
 parser = OptionParser()
-parser.add_option("-l", "--lab", dest="labname", help="assignment to grade", metavar="LAB")
-parser.add_option("-z", "--zipfile", dest="zipfile", help="zip file to extract", metavar="ZIP")
-parser.add_option("-v", "--verbose", dest="verbose", action="store_true", default=False, help="Enable vebose mode: prints report to the command line", metavar="DEBUG")
-parser.add_option("-a", "--addsource", dest="addsource", action="store_true", default=False, help="Append the assignemnt's source code at the end of the report", metavar="ADDSRC")
+parser.add_option("-c", "--config", dest="config", help="assignment config file name (default=assignment.json)", default="assignment.json", metavar="CONFIG")
 
 (options, args) = parser.parse_args()
 
-if options.labname is None:
-	parser.error("labname not given")
-
 currdir = os.getcwd()
-submissionsdir = os.path.join(currdir,"submissions")
 
-if not options.zipfile is None:
-	zippath = options.zipfile
-	if not os.path.isabs(options.zipfile):
-		zippath = os.path.join(currdir, options.zipfile)
+jsonpath = getPath(options.config)
+if not os.path.exists(jsonpath):
+	parser.error("Could not determine json path")
+
+with open(jsonpath) as f:
+	data = json.load(f)
+
+if "test" not in data:
+	sys.exit("Error: \"test\" section missing in config. No unit tests defined")
+submissionsdir = os.path.join(currdir,"submissions")
+if os.path.exists(submissionsdir):
+	delete = raw_input("submissions/ directory exists. Do you wish to delete it? (Y, N): ")
+	if delete.lower() == "y":
+		shutil.rmtree(submissionsdir)
+
+if "zip" in data:
+	zippath = getPath(data["zip"])
 	if not os.path.exists(zippath):
 		 parser.error("{0} does not exist".format(zippath))
 	if not os.path.splitext(zippath)[1] == ".zip":
@@ -77,9 +93,30 @@ if not os.path.exists(submissionsdir):
 	sys.exit("could not find \"submissions\" directory")
 
 # directory where the assignments will be compiled, run and unit tested 1 by 1.
-javadir = os.path.join(currdir,"java")
-if not os.path.exists(javadir):
-	sys.exit("could not find \"java\" directory")
+srcdir = os.path.join(currdir, "src")
+if os.path.exists(srcdir):
+	delete = raw_input("src/ directory exists and must be deleted before proceding. Delete? (Y, N): ")
+	if delete.lower() == "y":
+		shutil.rmtree(srcdir)
+	else:
+		sys.exit("Program terminated")
+javadir = os.path.join(srcdir,"main","java")
+testdir = os.path.join(srcdir,"test","java")
+os.makedirs(javadir)
+os.makedirs(testdir)
+
+if "supportFiles" in data:
+	for f in data["supportFiles"]:
+		fpath = getPath(f)
+		if not os.path.exists(fpath):
+			sys.exit("Error: Support file \"{0}\" does not exist".format(fpath))
+		shutil.copy(fpath, javadir)
+
+junitpath = getPath(data["test"])
+if not os.path.exists(junitpath):
+	sys.exit("Error: Junit file \"{0}\" does not exist".format(junitpath))
+
+shutil.copy(junitpath, testdir)
 
 submissions = os.listdir(submissionsdir)
 for submission in submissions:
@@ -129,23 +166,20 @@ for submission in submissions:
 		if line.startswith("package"):
 			line = "//" + line
 		# replace every reference of the main class with the lab name.
-		newlines.append(line.replace(mainClass, options.labname))
+		newlines.append(line.replace(mainClass, data["name"]))
 	
 	# rename the file to match the lab name.
-	with file(os.path.join(javadir, options.labname + ".java"), "w") as f:
+	with file(os.path.join(javadir, data["name"] + ".java"), "w") as f:
 		f.writelines(newlines)
 
 	# 
 	# Compile and run	
 	currdir = os.getcwd()
-	os.chdir(javadir)
-	# Right now, runner.sh must be modified to compile the lab name.
-	# This needs to be done once for the entire assignment
-	#TODO do this programatically. 
-	#TODO Should runner.sh be a python script? Keeping it outsite this script allows to re-compile an individual assignment without running the whole script.
-	args = [os.path.join(javadir, "runner.sh"), ">>", "build.log"]
+	args = ["gradle", "build"]
 	subprocess.call(args)
-	os.chdir(currdir)
+
+	#TODO finsh up gradle integration. program has been migrated up till hre
+	sys.exit()
 
 	# Report the unit test results. These are stored in result.log in the "java" sub directory
 	report.add("------ Functional Results -----")

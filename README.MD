@@ -1,15 +1,12 @@
 #APCS Grader
 ============
-## Note: runner.sh and TestJunit.java need to be modified for each lab
+## !! This project is not in a working state !!
+## Note: gradle and unzip must be installed and in your path for this program to work
 Options:
-	-h, --help		show this help message and exit
-	-l LAB, --lab=LAB	assignment to grade
-	-z ZIP, --zipfile=ZIP	zip file to extract
-	-v, --verbose		Enable vebose mode: prints report to the command line
-	-a, --addsource		Append the assignemnt's source code at the end of the
+	-h, --help			show this help message and exit
+	-c CONFIG, --config=Config	Assignment config file (default=assignment.json)	
 
 ### before running grader.py:
-1. Create a directory called "submissions" (unless using the -z option)
-2. Extract your submissions in the "submissions" directory (unless using the -z option)
-3. Modify java/runner.sh with the proper parameters
-4. Modify java/TestJunit.java with a proper JUnit for the assignment.
+1. Create a JUnit test for the assignment or re-use an existing one.
+2. Create an assignment json file or modify assignment.json in the root directory with the appropriate settings.
+3. Make sure the submission zip, assignment support files and JUNIT tests are in the place defined in your assigment json file
