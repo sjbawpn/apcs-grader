@@ -17,7 +17,6 @@ def getPath(path):
 	return result
 
 def reportTestResults(report, results):
-	#<testsuite name="TestJunit" tests="1" skipped="0" failures="1" errors="0" timestamp="2015-11-23T21:53:33" hostname="crls" time="0.012">
 	report.add("------ Functional Results -----")
 	xmldoc = minidom.parse(results)
 	testsuite = xmldoc.getElementsByTagName("testsuite")[0]
@@ -43,6 +42,28 @@ def reportTestResults(report, results):
 		for failure in failures:
 			message = failure.attributes["message"].value
 			report.add("\t\tMessage: {0}".format(message))
+		i = i + 1
+
+def reportStyleResults(report, results):
+	report.add("------ Style Results -----")
+	xmldoc = minidom.parse(results)
+	files = xmldoc.getElementsByTagName("file")
+	i = 1
+	for f in files:
+		name = f.attributes["name"].value
+		errors = f.getElementsByTagName("error")
+		status = "Passed"
+		if len(errors) > 0:
+			status = "Failed"
+		report.add("\t{0}- \"{1}\" : {2}!".format(i, name, status))
+
+		for error in errors:
+			line = error.attributes["line"].value
+			column = error.attributes["column"].value
+			severity = error.attributes["severity"].value
+			message = error.attributes["message"].value
+			# source = error.attributes["source"].value # (Unused)
+			report.add("\t\t{0}: {1} in line:{2}, column:{3}".format(severity.capitalize(),message,line,column))
 		i = i + 1
 
 parser = OptionParser()
@@ -149,6 +170,9 @@ if not os.path.exists(junitpath):
 
 shutil.copy(junitpath, testdir)
 
+reportsdir = os.path.join(currdir,"reports")
+detaileddir = os.path.join(reportsdir, "detailed")
+
 submissions = os.listdir(submissionsdir)
 for submission in submissions:
 	fname, fext = os.path.splitext(submission)
@@ -209,38 +233,49 @@ for submission in submissions:
 	currdir = os.getcwd()
 	print "building..."
 	args = ["gradle", "build"]
-	subprocess.call(args)
-	junitFname = os.path.split(junitpath)[-1]
-	junitName = os.path.splitext(junitFname)[0]
-	# Parse the test results XML
 
-	buildPath = os.path.join(currdir, "build")
-	testResultsPath = os.path.join(buildPath, "test-results")
-	buildReportPath = os.path.join(buildPath, "reports/")
+	retcode = subprocess.call(args)
+	if retcode == 0:
+		junitFname = os.path.split(junitpath)[-1]
+		junitName = os.path.splitext(junitFname)[0]
 
+		buildPath = os.path.join(currdir, "build")
+		testResultsPath = os.path.join(buildPath, "test-results")
+		buildReportPath = os.path.join(buildPath, "reports/")
+		styleReportPath = os.path.join(buildReportPath, "checkstyle")
 
-	reportsdir = os.path.join(currdir,"reports")
-	detaileddir = os.path.join(reportsdir, "detailed")
-	# If "reports/detailed" directory does not exist, create it
-	if not os.path.exists(detaileddir):
-		os.makedirs(detaileddir)
-	zipFile = os.path.join(detaileddir, studentNameStr + ".zip")
-	args = ["zip", "-r", zipFile, buildReportPath]
-	subprocess.call(args)
+		# If "reports/detailed" directory does not exist, create it
+		if not os.path.exists(detaileddir):
+			os.makedirs(detaileddir)
+		zipFile = os.path.join(detaileddir, studentNameStr + ".zip")
+		args = ["zip", "-r", zipFile, buildReportPath]
+		subprocess.call(args)
 
+		# Parse the test results XML
+		junitResult = os.path.join(testResultsPath, "TEST-{0}.xml".format(junitName))
+		if os.path.exists(junitResult):
+			reportTestResults(report, junitResult)
+		else:
+			report.add("\tError: Could not find junit test results. Expected path: {0}".format(junitResult))
+			report.flag()
+		
+		styleResult = os.path.join(styleReportPath, "main.xml")
+		if os.path.exists(styleResult):
+			reportStyleResults(report, styleResult)
+		else:
+			report.add("\tError: Could not find  checkstyle results. Expected path: {0}".format(styleResult))
+			report.flag()
+
+	else:
+		report.add("Error building the project!")
+		report.flag()
+
+	report.add("")
+
+	# Clean build
 	print "cleaning..."
 	args = ["gradle", "clean"]
 	subprocess.call(args)
-	
-	junitResult = os.path.join(testResultsPath, "TEST-{0}.xml".format(junitName))
-	if os.path.exists(junitResult):
-		reportTestResults(report, junitResult)
-	else:
-		report.add("\tError: Could not find junit test results. Expected path: {0}".format(junitResult))
-		report.flag()
-
-	#TODO finsh up gradle integration. program has been migrated up till hre
-	report.add("")
 
 
 	#
