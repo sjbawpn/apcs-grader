@@ -1,9 +1,11 @@
 #!/usr/bin/python
 import os
+import math
 
 # Class to represent the student's report file.
 # methods: flag(), add(message), submit()
 class Report:
+	width = 100
 	filename = "default.txt"
 	flagged = False
 	content = []
@@ -25,6 +27,27 @@ class Report:
 			print(message)
 		self.content.append(message + "\n")
 	
+	def addTitle(self, message):
+		width = self.width + 10
+		spaces = (width - len(message) - 2) / 2.0
+		spacesBefore = int(math.floor(spaces))
+		spacesAfter = int(math.ceil(spaces))
+		self.add("")
+		self.add("*" * width)
+		self.add("*" + " " * (width - 2) + "*")
+		self.add("*" + " " * spacesBefore + message + " " * spacesAfter + "*")
+		self.add("*" + " " * (width - 2) + "*")
+		self.add("*" * width)
+		self.add("")
+
+	def addHeader(self, message):
+		spaces = (self.width - len(message) - 2) / 2.0
+		spacesBefore = int(math.floor(spaces))
+		spacesAfter = int(math.ceil(spaces))
+		self.add("-" * self.width)
+		self.add("-" + " " * spacesBefore + message + " " * spacesAfter + "-")
+		self.add("-" * self.width)
+
 	# submit the report and save the file
 	def submit(self):
 		if self.flagged:

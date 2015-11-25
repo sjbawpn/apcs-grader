@@ -1,6 +1,7 @@
 import os
 
 class JavaFile:
+	package = ""
 	lines = []
 	comments = []
 	mainClass = ""
@@ -18,6 +19,18 @@ class JavaFile:
 		with file(source ,"r") as f:
 			self.lines = f.readlines()
 
+		# 
+		# find the package
+		#
+		for line in self.lines:
+			line = line.strip()
+			code = line.split("//")[0]
+			if code.startswith("package"):
+				packageLine = line.replace("package", "")
+				packageLine = packageLine.replace(";", " ").strip()
+				self.package = packageLine.split()[0]
+			elif len(code) > 0:
+				package = "" 
 		#
 		# find the main class name
 		#
@@ -26,7 +39,7 @@ class JavaFile:
 			line = line.strip()
 			code = line.split("//")[0] 
 			if self.mainClass == "" and "class" in code:
-				prefix = code.split("(")[0]
+				prefix = code.split("{")[0]
 				words = prefix.split()
 				idx = words.index("class")
 				if idx >= 0:
@@ -105,4 +118,24 @@ class JavaFile:
 		return self.comments	
 	def getMainClass(self):
 		return self.mainClass
+	def getPackage(self):
+		return self.package
 
+	def write(self, path):
+		packagedir = path
+		if self.package != "":
+			packageList = self.package.split(".")
+			packagedir = os.path.join(packagedir, *packageList)
+				
+		if not os.path.exists(packagedir):
+			os.makedirs(packagedir)
+
+		# rename the file to match the class name.
+		with file(os.path.join(packagedir, self.mainClass + ".java"), "w") as f:
+			f.writelines(self.lines)
+	
+	def getFullName(self):
+		if self.package == "":
+			return self.mainClass
+		else:
+			return self.package + "." + self.mainClass

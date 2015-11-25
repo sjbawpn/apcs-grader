@@ -1,8 +1,7 @@
 {
-	"name" : "AngryDog",
-	"zip" : "../AngryDog/APCS_DM_F15-Angry_dog_(SD)-2225.zip",
-	"supportFiles" : ["../AngryDog/support/Dog.java", "../AngryDog/support/LoudDog.java",  "../AngryDog/support/PetSitter.java"],
-	"test" : "../AngryDog/test/TestJunit.java",
+	"name" : "TextExcel",
+	"zip" : "../TextExcel/APCS_DM_F15-Text_Excel_Checkpoint_1_(DM)-2242.zip",
+	"test" : "../TextExcel/test/TextExcelTests1.java",
 	"verbose" : true,
-	"addSrc" : true
+	"addSrc" : false
 }

@@ -1,4 +1,5 @@
 #!/usr/bin/python
+from inc.assignment import Assignment
 from inc.report import Report
 from inc.java import JavaFile
 import os
@@ -10,6 +11,9 @@ import json
 from pprint import pprint
 from xml.dom import minidom
 
+##
+#	Helper function to resolve a given path
+##
 def getPath(path):
 	currdir = os.getcwd()
 	result = path
@@ -17,8 +21,11 @@ def getPath(path):
 		result = os.path.join(currdir, result)
 	return result
 
+##
+#	Helper function to report function test results
+##
 def reportTestResults(report, results):
-	report.add("------ Functional Results -----")
+	report.addTitle("Functional Results")
 	xmldoc = minidom.parse(results)
 	testsuite = xmldoc.getElementsByTagName("testsuite")[0]
 	tests = testsuite.attributes["tests"].value
@@ -45,8 +52,11 @@ def reportTestResults(report, results):
 			report.add("\t\tMessage: {0}".format(message))
 		i = i + 1
 
+##
+#	Helper function to report code style test results
+##
 def reportStyleResults(report, results):
-	report.add("------ Style Results -----")
+	report.addTitle("Style Results")
 	xmldoc = minidom.parse(results)
 	files = xmldoc.getElementsByTagName("file")
 	i = 1
@@ -67,6 +77,9 @@ def reportStyleResults(report, results):
 			report.add("\t\t{0}: {1} in line:{2}, column:{3}".format(severity.capitalize(),message,line,column))
 		i = i + 1
 
+##
+#	Main
+##
 parser = OptionParser()
 parser.add_option("-c", "--config", dest="config", help="assignment config file name (default=assignment.json)", default="assignment.json", metavar="CONFIG")
 
@@ -85,7 +98,7 @@ if "test" not in data:
 	sys.exit("Error: \"test\" section missing in config. No unit tests defined")
 submissionsdir = os.path.join(currdir,"submissions")
 if os.path.exists(submissionsdir):
-	delete = raw_input("submissions/ directory exists. Do you wish to delete it (Y, N)? Y: ")
+	delete = raw_input("submissions directory exists. Do you wish to delete it (Y, N)? Y: ")
 	if delete.lower() != "n":
 		shutil.rmtree(submissionsdir)
 
@@ -100,8 +113,6 @@ if "zip" in data:
 	args = ["unzip","-d", submissionsdir, zippath]
 	subprocess.call(args)
 		
-#TODO logic to parse code be moved to a CodeParser class
-
 # directory where the extracted assignments reside
 submissionsdir = os.path.join(currdir,"submissions")
 if not os.path.exists(submissionsdir):
@@ -117,21 +128,15 @@ if os.path.exists(srcdir):
 		sys.exit("Program terminated")
 javadir = os.path.join(srcdir,"main","java")
 testdir = os.path.join(srcdir,"test","java")
-os.makedirs(javadir)
-os.makedirs(testdir)
 
+supportFiles = []
 if "supportFiles" in data:
 	for f in data["supportFiles"]:
-		fpath = getPath(f)
-		if not os.path.exists(fpath):
-			sys.exit("Error: Support file \"{0}\" does not exist".format(fpath))
-		shutil.copy(fpath, javadir)
+		supportFiles.append(getPath(f))
 
 junitpath = getPath(data["test"])
 if not os.path.exists(junitpath):
 	sys.exit("Error: Junit file \"{0}\" does not exist".format(junitpath))
-
-shutil.copy(junitpath, testdir)
 
 reportsdir = os.path.join(currdir,"reports")
 detaileddir = os.path.join(reportsdir, "detailed")
@@ -144,56 +149,118 @@ for submission in submissions:
 	studentName, javaName, x = fname.split("_")
 	if studentName not in students:
 		students.append(studentName)
-javaFiles = {}
+assignments = {}
 for student in students:
-	javaFiles[student] = [submission for submission in submissions if submission.startswith(student)]
-		
-for student in students:
-	print(student)
-	studentNameStr = student.lower().replace(" ","_")
-	report = Report(studentNameStr + ".txt", data["verbose"])
-	submissions = javaFiles[student]
-	for submission in submissions:
-		fname, fext = os.path.splitext(submission)
-		studentName, javaName, x = fname.split("_")
+	javaFiles = [os.path.join(submissionsdir,submission) for submission in submissions if submission.startswith(student)]
+	tests = [junitpath]
+	assignment = Assignment(javaFiles, supportFiles, tests)
+	assignments[student] = assignment
 
-		submissionFile = os.path.join(submissionsdir, submission)
+for student in students:
+	if os.path.exists(srcdir):
+		shutil.rmtree(srcdir)
+	os.makedirs(javadir)
+	os.makedirs(testdir)
+	print(student)
+	studentReportName = student.lower().replace(" ","_")
+	report = Report(studentReportName + ".txt", data["verbose"])
+	assignment = assignments[student]
+	
+	# Copy support files
+	for support in assignment.support:
 		try:
-			javaFile = JavaFile(submissionFile)
+			javaFile = JavaFile(support)
+			javaFile.write(javadir)
 		except (TypeError, ValueError) as err:
 			report.add(str(err))
 			report.flag()
 			report.submit()
-			continue
 
-		# re-write the source file in a more script friendly way.
-		newlines = []
-		for line in javaFile.getLines():
-			# Comment out the package name (everything will be in the default package for now)
-			if line.startswith("package"):
-				line = "//" + line
-			newlines.append(line)
-	
-		# rename the file to match the class name.
-		with file(os.path.join(javadir, javaFile.getMainClass() + ".java"), "w") as f:
-			f.writelines(newlines)
-		issues = []
-		# Issue checker: If source file name does not match the class
-		if not javaFile.getMainClass() == javaName:
-			issues.append("Java file name: \"{0}\" does not match class name : \"{1}\"!".format(javaName, javaFile.getMainClass()))
-		report.add(" **************** " + javaFile.getMainClass() + ".java *************")
-		# Report on the issues
-		if len(issues) > 0:
-			report.add("------ !! ISSUES !! -----")
-			for issue in issues:
-				report.add("\t" + issue)
+	# Copy test files
+	junitNames = []
+	for test in assignment.tests:
+		try:
+			javaFile = JavaFile(test)
+			javaFile.write(testdir)
+			junitNames.append(javaFile.getFullName())
+		except (TypeError, ValueError) as err:
+			report.add(str(err))
+			report.flag()
+			report.submit()
 
-		report.add("------ Main class -----")
-		report.add("\tName = {0}".format(javaFile.getMainClass()))
+	# Handle submission
+	submissionFiles = []
+	for submission in assignment.main:
+		try:
+			javaFile = JavaFile(submission)
+			javaFile.write(javadir)
+			submissionFiles.append(javaFile)
+		except (TypeError, ValueError) as err:
+			report.add(str(err))
+			report.flag()
+			report.submit()
+
+	## 
+	#	 Compile and run
+	##
+	currdir = os.getcwd()
+	print "building..."
+	args = ["gradle", "build"]
+
+	retcode = subprocess.call(args)
+	if retcode == 0:
+		buildPath = os.path.join(currdir, "build")
+		testResultsPath = os.path.join(buildPath, "test-results")
+		buildReportPath = os.path.join(buildPath, "reports/")
+		styleReportPath = os.path.join(buildReportPath, "checkstyle")
+
+		# If "reports/detailed" directory does not exist, create it
+		if not os.path.exists(detaileddir):
+			os.makedirs(detaileddir)
+		zipFile = os.path.join(detaileddir, studentReportName + ".zip")
+		args = ["zip", "-r", zipFile, buildReportPath]
+		subprocess.call(args)
+
+		# Parse the test results XML
+		for junitName in junitNames:
+			junitResult = os.path.join(testResultsPath, "TEST-{0}.xml".format(junitName))
+			if os.path.exists(junitResult):
+				reportTestResults(report, junitResult)
+			else:
+				report.add("\tError: Could not find junit test results. Expected path: {0}".format(junitResult))
+				report.flag()
+		
+		styleResult = os.path.join(styleReportPath, "main.xml")
+		if os.path.exists(styleResult):
+			reportStyleResults(report, styleResult)
+		else:
+			report.add("\tError: Could not find  checkstyle results. Expected path: {0}".format(styleResult))
+			report.flag()
+
+	else:
+		report.addTitle("ERROR")
+		report.add("Error building the project!")
+		report.flag()
+
+	##
+	# 	Clean build
+	##
+	print "cleaning..."
+	args = ["gradle", "clean"]
+	subprocess.call(args)	
+
+	##
+	#	Submission report
+	##
+
+	for javaFile in submissionFiles:
+		report.addTitle(javaFile.getMainClass()+".java")
+
+		report.add("Main Class name = {0}".format(javaFile.getMainClass()))
 
 		# Report on the functions
 		report.add("")
-		report.add("------ FUNCTIONS ----- (count={0})".format(len(javaFile.getFunctions())))
+		report.addHeader("Functions (count={0})".format(len(javaFile.getFunctions())))
 		i = 1
 		for function in javaFile.getFunctions():
 			report.add("\t-function {0}:".format(i))
@@ -202,7 +269,7 @@ for student in students:
 
 		# Report on the comments
 		report.add("")
-		report.add("------ COMMENTS ----- (count={0})".format(len(javaFile.getComments())))
+		report.addHeader("Comments (count={0})".format(len(javaFile.getComments())))
 		i = 1
 		for comment in javaFile.getComments():
 			report.add("\t-Comment {0}:".format(i))
@@ -214,58 +281,12 @@ for student in students:
 		if data["addSrc"]:
 			report.add("")
 			report.add("")
-			report.add("-"*20)
+			report.addHeader("Source")
 			for line in javaFile.getLines():
 				report.add(line)
 
-	# 
-	# Compile and run	
-	currdir = os.getcwd()
-	print "building..."
-	args = ["gradle", "build"]
-
-	retcode = subprocess.call(args)
-	if retcode == 0:
-		junitFname = os.path.split(junitpath)[-1]
-		junitName = os.path.splitext(junitFname)[0]
-
-		buildPath = os.path.join(currdir, "build")
-		testResultsPath = os.path.join(buildPath, "test-results")
-		buildReportPath = os.path.join(buildPath, "reports/")
-		styleReportPath = os.path.join(buildReportPath, "checkstyle")
-
-		# If "reports/detailed" directory does not exist, create it
-		if not os.path.exists(detaileddir):
-			os.makedirs(detaileddir)
-		zipFile = os.path.join(detaileddir, studentNameStr + ".zip")
-		args = ["zip", "-r", zipFile, buildReportPath]
-		subprocess.call(args)
-
-		# Parse the test results XML
-		junitResult = os.path.join(testResultsPath, "TEST-{0}.xml".format(junitName))
-		if os.path.exists(junitResult):
-			reportTestResults(report, junitResult)
-		else:
-			report.add("\tError: Could not find junit test results. Expected path: {0}".format(junitResult))
-			report.flag()
-		
-		styleResult = os.path.join(styleReportPath, "main.xml")
-		if os.path.exists(styleResult):
-			reportStyleResults(report, styleResult)
-		else:
-			report.add("\tError: Could not find  checkstyle results. Expected path: {0}".format(styleResult))
-			report.flag()
-
-	else:
-		report.add("Error building the project!")
-		report.flag()
-
-	report.add("")
-
-	# Clean build
-	print "cleaning..."
-	args = ["gradle", "clean"]
-	subprocess.call(args)	
 
 	report.submit()
-	sys.exit()
+
+if os.path.exists(srcdir):
+	shutil.rmtree(srcdir)
