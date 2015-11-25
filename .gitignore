@@ -45,3 +45,6 @@ Temporary Items
 
 #Gradle
 .gradle
+
+#Python
+*.pyc

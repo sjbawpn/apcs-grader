@@ -1,4 +1,6 @@
 #!/usr/bin/python
+from inc.report import Report
+from inc.java import JavaFile
 import os
 import shutil
 import sys
@@ -7,7 +9,6 @@ import subprocess
 import json
 from pprint import pprint
 from xml.dom import minidom
-
 
 def getPath(path):
 	currdir = os.getcwd()
@@ -99,45 +100,7 @@ if "zip" in data:
 	args = ["unzip","-d", submissionsdir, zippath]
 	subprocess.call(args)
 		
-# Class to represent the student's report file.
-# methods: flag(), add(message), submit()
-class Report:
-	filename = "default.txt"
-	flagged = False
-	content = []
-	
-	# Set the assignment as flagged. The flag being on affects the report name
-	def flag(self):
-		self.flagged = True
-
-	# construct with the report filename
-	def __init__(self, filename):
-		self.filename = filename
-		self.content = []
-	
-	# add a line to the report
-	def add(self, message):
-		if data["verbose"]:
-			print(message)
-		self.content.append(message + "\n")
-	
-	# submit the report and save the file
-	def submit(self):
-		if self.flagged:
-			self.filename = "FLAGGED_" + self.filename
-		currdir = os.getcwd()
-		reportsdir = os.path.join(currdir,"reports")
-
-		# If "reports" directory does not exist, create it
-		if not os.path.exists(reportsdir):
-			os.mkdir(reportsdir)
-
-		with file(os.path.join(currdir,"reports", self.filename), "w") as f :
-			f.writelines(self.content)
-
 #TODO logic to parse code be moved to a CodeParser class
-	
-
 
 # directory where the extracted assignments reside
 submissionsdir = os.path.join(currdir,"submissions")
@@ -173,60 +136,87 @@ shutil.copy(junitpath, testdir)
 reportsdir = os.path.join(currdir,"reports")
 detaileddir = os.path.join(reportsdir, "detailed")
 
+
 submissions = os.listdir(submissionsdir)
+students = []
 for submission in submissions:
 	fname, fext = os.path.splitext(submission)
 	studentName, javaName, x = fname.split("_")
-	print(studentName)
-	studentNameStr = studentName.lower().replace(" ","_")
-	report = Report(studentNameStr + ".txt")
+	if studentName not in students:
+		students.append(studentName)
+javaFiles = {}
+for student in students:
+	javaFiles[student] = [submission for submission in submissions if submission.startswith(student)]
+		
+for student in students:
+	print(student)
+	studentNameStr = student.lower().replace(" ","_")
+	report = Report(studentNameStr + ".txt", data["verbose"])
+	submissions = javaFiles[student]
+	for submission in submissions:
+		fname, fext = os.path.splitext(submission)
+		studentName, javaName, x = fname.split("_")
 
-	if not fext == ".java":
-		report.add("ERROR: File extension: {0}, expected: .java".format(fext))
-		report.flag()
-		report.submit()
-		continue	
-	lines = []
-	comments = []
-	mainClass = ""
-	functions = []
-	issues = []
-	with file(os.path.join(submissionsdir, submission) ,"r") as f:
-		lines = f.readlines()
+		submissionFile = os.path.join(submissionsdir, submission)
+		try:
+			javaFile = JavaFile(submissionFile)
+		except (TypeError, ValueError) as err:
+			report.add(str(err))
+			report.flag()
+			report.submit()
+			continue
 
-	#
-	# find the main class name
-	#
-	#TODO A better way to parse the file is to create a class tree but that seems overkill for this project
-	for line in lines:
-		line = line.strip()
-		code = line.split("//")[0] 
-		if mainClass == "" and "class" in code:
-			prefix = code.split("(")[0]
-			words = prefix.split()
-			idx = words.index("class")
-			if idx >= 0:
-				mainClass = words[idx+1]
-
-	# Exit if the main class could not be determined	
-	if mainClass == "":
-		report.add("ERROR: Could not determine main class name")
-		report.flag()
-		report.submit()
-		continue	
-
-	# re-write the source file in a more script friendly way.
-	newlines = []
-	for line in lines:
-		# Comment out the package name (everything will be in the default package for now)
-		if line.startswith("package"):
-			line = "//" + line
-		# replace every reference of the main class with the lab name.
-		newlines.append(line.replace(mainClass, data["name"]))
+		# re-write the source file in a more script friendly way.
+		newlines = []
+		for line in javaFile.getLines():
+			# Comment out the package name (everything will be in the default package for now)
+			if line.startswith("package"):
+				line = "//" + line
+			newlines.append(line)
 	
-	# rename the file to match the lab name.
-	with file(os.path.join(javadir, data["name"] + ".java"), "w") as f:
-		f.writelines(newlines)
+		# rename the file to match the class name.
+		with file(os.path.join(javadir, javaFile.getMainClass() + ".java"), "w") as f:
+			f.writelines(newlines)
+		issues = []
+		# Issue checker: If source file name does not match the class
+		if not javaFile.getMainClass() == javaName:
+			issues.append("Java file name: \"{0}\" does not match class name : \"{1}\"!".format(javaName, javaFile.getMainClass()))
+		report.add(" **************** " + javaFile.getMainClass() + ".java *************")
+		# Report on the issues
+		if len(issues) > 0:
+			report.add("------ !! ISSUES !! -----")
+			for issue in issues:
+				report.add("\t" + issue)
+
+		report.add("------ Main class -----")
+		report.add("\tName = {0}".format(javaFile.getMainClass()))
+
+		# Report on the functions
+		report.add("")
+		report.add("------ FUNCTIONS ----- (count={0})".format(len(javaFile.getFunctions())))
+		i = 1
+		for function in javaFile.getFunctions():
+			report.add("\t-function {0}:".format(i))
+			report.add("\t\t"+function.strip())
+			i = i + 1
+
+		# Report on the comments
+		report.add("")
+		report.add("------ COMMENTS ----- (count={0})".format(len(javaFile.getComments())))
+		i = 1
+		for comment in javaFile.getComments():
+			report.add("\t-Comment {0}:".format(i))
+			for line in comment:
+				report.add("\t\t"+line.strip())
+			i = i + 1
+	
+		# If enabled, append the source code to the end of the report.
+		if data["addSrc"]:
+			report.add("")
+			report.add("")
+			report.add("-"*20)
+			for line in javaFile.getLines():
+				report.add(line)
 
 	# 
 	# Compile and run	
@@ -275,108 +265,7 @@ for submission in submissions:
 	# Clean build
 	print "cleaning..."
 	args = ["gradle", "clean"]
-	subprocess.call(args)
-
-
-	#
-	# crawl for functions
-	# Look for "{" in each file and the first line of text that preceeds the line with "{"
-	# (if the curly brace is not on its own line, the function prototype is in that line)
-	# skip lines that start with words in the "ignoredKeyworkds" list. (not exhaustive)
-	ignoredKeywords = ["for", "while", "try", "catch", "if", "then", "while", "do", "class"]
-
-	i = 0;
-	while i < len(lines):
-		line = lines[i].strip()
-		if line.startswith("//") or not "{" in line:
-			i = i + 1
-			continue	
-		
-		func = ""
-		if line.startswith("{"):
-			n = 1
-			while i - n >= 0 and len(func) == 0:
-				func = lines[i-n].strip()
-				n = n + 1
-		else:
-			func = line.replace("{", "") # remove "{" for readability
-		
-		words = func.replace("("," ").split()
-		if words[0] not in ignoredKeywords:
-			functions.append(func)
-		i = i + 1
-	
-	#
-	# crawl for comments
-	#TODO handle empty lines between comments and logic (basically skip them)
-	#
-	i = 0;
-	while i < len(lines):
-		line = lines[i].strip()
-		# Single comments
-		if "//" in line and not line.startswith("//"):
-			comment = []
-			if i > 0:
-				comment.append("    " + lines[i-1])
-			comment.append("--->" + lines[i])
-			if i + 1 < len(lines):
-				comment.append("    " + lines[i+1])
-			comments.append(comment)
-			i = i + 1
-			continue
-		
-		# Block comments (//)
-		comment = []
-		while line.startswith("//"):
-			comment.append(line)
-			i = i + 1
-			if i == len(lines):
-				break
-			line = lines[i].strip()
-		if len(comment) > 0:
-			if i + 1 < len(lines):
-				comment.append(lines[i+1])
-			comments.append(comment)
-		#TODO handle /* */ comments
-		i = i + 1
-	
-	# Issue checker: If source file name does not match the class
-	if not mainClass == javaName:
-		issues.append("Java file name: \"{0}\" does not match class name : \"{1}\"!".format(javaName, mainClass))
-
-	# Report on the issues
-	if len(issues) > 0:
-		report.add("------ !! ISSUES !! -----")
-		for issue in issues:
-			report.add("\t" + issue)
-	report.add("------ Main class -----")
-	report.add("\tName = {0}".format(mainClass))
-
-	# Report on the functions
-	report.add("")
-	report.add("------ FUNCTIONS ----- (count={0})".format(len(functions)))
-	i = 1
-	for function in functions:
-		report.add("\t-function {0}:".format(i))
-		report.add("\t\t"+function.strip())
-		i = i + 1
-
-	# Report on the comments
-	report.add("")
-	report.add("------ COMMENTS ----- (count={0})".format(len(comments)))
-	i = 1
-	for comment in comments:
-		report.add("\t-Comment {0}:".format(i))
-		for line in comment:
-			report.add("\t\t"+line.strip())
-		i = i + 1
-	
-	# If enabled, append the source code to the end of the report.
-	if data["addSrc"]:
-		report.add("")
-		report.add("")
-		report.add("-"*20)
-		for line in lines:
-			report.add(line)
+	subprocess.call(args)	
 
 	report.submit()
+	sys.exit()
