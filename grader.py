@@ -1,4 +1,5 @@
 #!/usr/bin/python
+
 from inc.assignment import Assignment
 from inc.report import Report
 from inc.java import JavaFile
@@ -10,7 +11,6 @@ import subprocess
 import json
 from pprint import pprint
 from xml.dom import minidom
-
 ##
 #	Helper function to resolve a given path
 ##
@@ -90,81 +90,105 @@ currdir = os.getcwd()
 jsonpath = getPath(options.config)
 if not os.path.exists(jsonpath):
 	parser.error("Could not determine json path")
-
 with open(jsonpath) as f:
 	data = json.load(f)
 
-if "test" not in data:
-	sys.exit("Error: \"test\" section missing in config. No unit tests defined")
-submissionsdir = os.path.join(currdir,"submissions")
+##
+# Initialize
+##
+submissionsdir = os.path.join(currdir,"submissions") # directory where submissions will be placed
+srcdir = os.path.join(currdir, "src") # directory where the assignments will be compiled, run and unit tested 1 by 1.
+javadir = os.path.join(srcdir,"main","java")
+testdir = os.path.join(srcdir,"test","java")
+
+# check submissions directory already exit
 if os.path.exists(submissionsdir):
-	delete = raw_input("submissions directory exists. Do you wish to delete it (Y, N)? Y: ")
+	delete = raw_input("submissions directory exists and must be deleted before proceeding. Do you wish to delete it (Y, N)? Y: ")
 	if delete.lower() != "n":
 		shutil.rmtree(submissionsdir)
+	else:
+		sys.exit("Program terminated")
+os.mkdir(submissionsdir)
 
-if "zip" in data:
-	zippath = getPath(data["zip"])
-	if not os.path.exists(zippath):
-		 parser.error("{0} does not exist".format(zippath))
-	if not os.path.splitext(zippath)[1] == ".zip":
-		parser.error("{0} not a zip file".format(zippath))
-	if not os.path.exists(submissionsdir):
-		os.mkdir(submissionsdir)
-	args = ["unzip","-d", submissionsdir, zippath]
-	subprocess.call(args)
-		
-# directory where the extracted assignments reside
-submissionsdir = os.path.join(currdir,"submissions")
-if not os.path.exists(submissionsdir):
-	sys.exit("could not find \"submissions\" directory")
-
-# directory where the assignments will be compiled, run and unit tested 1 by 1.
+# check src directory already exit
 srcdir = os.path.join(currdir, "src")
 if os.path.exists(srcdir):
-	delete = raw_input("src/ directory exists and must be deleted before proceding. Delete it (Y, N)? Y: ")
+	delete = raw_input("src directory exists and must be deleted before proceding. Do you wish to delete it (Y, N)? Y: ")
 	if delete.lower() != "n":
 		shutil.rmtree(srcdir)
 	else:
 		sys.exit("Program terminated")
-javadir = os.path.join(srcdir,"main","java")
-testdir = os.path.join(srcdir,"test","java")
 
+##
+# Parse JSON file
+##
+assignmentType = "default"
+assignments = {}
+if "type" in data:
+	assignmentType = data["type"]
+
+##
+# Parse test files
+##
+if "tests" not in data:
+	sys.exit("Error: \"tests\" section missing in config. No unit tests defined")
+
+testFiles = []
+for f in data["tests"]:
+	testFiles.append(getPath(f))
+
+##
+# Parse support files
+##
 supportFiles = []
 if "supportFiles" in data:
 	for f in data["supportFiles"]:
 		supportFiles.append(getPath(f))
 
-junitpath = getPath(data["test"])
-if not os.path.exists(junitpath):
-	sys.exit("Error: Junit file \"{0}\" does not exist".format(junitpath))
+# Handle moodle assignment
+if assignmentType == "moodle":
+	if "zip" not in data:
+		 parser.error("Assignment type is \"moodle\" but \"zip\" was not defined".format(zippath))
+	zippath = getPath(data["zip"])
+	if not os.path.exists(zippath):
+		 parser.error("{0} does not exist".format(zippath))
+	if not os.path.splitext(zippath)[1] == ".zip":
+		parser.error("{0} not a zip file".format(zippath))
+	args = ["unzip","-d", submissionsdir, zippath]
+	subprocess.call(args)
+	submissions = os.listdir(submissionsdir)
+	students = []
+	for submission in submissions:
+		fname, fext = os.path.splitext(submission)
+		studentName, javaName, x = fname.split("_")
+		if studentName not in students:
+			students.append(studentName)
+	for student in students:
+		javaFiles = [os.path.join(submissionsdir,submission) for submission in submissions if submission.startswith(student)]
+		assignments[student] = Assignment(javaFiles, supportFiles, testFiles)
+# Handle individual submissions (default)
+elif assignmentType == "default":
+	if "submissions" not in data:
+		 parser.error("Assignment type is \"default\" but \"submissions\" was not defined".format(zippath))
+	for submission in data["submissions"]:
+		fname = os.path.split(submission)[-1]
+		shutil.copyfile(submission, os.path.join(submissionsdir,fname))
+	javaFiles = data["submissions"]
+	assignments["default"] = Assignment(javaFiles, supportFiles, testFiles)
+
 
 reportsdir = os.path.join(currdir,"reports")
 detaileddir = os.path.join(reportsdir, "detailed")
 
-
-submissions = os.listdir(submissionsdir)
-students = []
-for submission in submissions:
-	fname, fext = os.path.splitext(submission)
-	studentName, javaName, x = fname.split("_")
-	if studentName not in students:
-		students.append(studentName)
-assignments = {}
-for student in students:
-	javaFiles = [os.path.join(submissionsdir,submission) for submission in submissions if submission.startswith(student)]
-	tests = [junitpath]
-	assignment = Assignment(javaFiles, supportFiles, tests)
-	assignments[student] = assignment
-
-for student in students:
+for name in assignments.keys():
 	if os.path.exists(srcdir):
 		shutil.rmtree(srcdir)
 	os.makedirs(javadir)
 	os.makedirs(testdir)
-	print(student)
-	studentReportName = student.lower().replace(" ","_")
-	report = Report(studentReportName + ".txt", data["verbose"])
-	assignment = assignments[student]
+	print(name)
+	reportName = name.lower().replace(" ","_")
+	report = Report(reportName + ".txt", data["verbose"])
+	assignment = assignments[name]
 	
 	# Copy support files
 	for support in assignment.support:
@@ -217,7 +241,7 @@ for student in students:
 		# If "reports/detailed" directory does not exist, create it
 		if not os.path.exists(detaileddir):
 			os.makedirs(detaileddir)
-		zipFile = os.path.join(detaileddir, studentReportName + ".zip")
+		zipFile = os.path.join(detaileddir, reportName + ".zip")
 		args = ["zip", "-r", zipFile, buildReportPath]
 		subprocess.call(args)
 
