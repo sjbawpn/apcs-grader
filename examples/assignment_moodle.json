@@ -1,11 +1,8 @@
 {
 
 	"name" : "ExampleName",
-	"_type" : "moodle",
-	"_zip" : "../moodle/example.zip",
-	"submissions" : [ "../single/File1.java",
-			  "../single/File2.java",
-			  "../single/File3.java"],
+	"type" : "moodle",
+	"zip" : "../moodle/example.zip",
 	"tests" : [ "../example/test/TestJunit.java" ],
 	"verbose" : true,
 	"addSrc" : false
