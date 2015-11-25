@@ -14,11 +14,12 @@ from xml.dom import minidom
 ##
 #	Helper function to resolve a given path
 ##
-def getPath(path):
-	currdir = os.getcwd()
+def getPath(path, root=None):
+	if root is None:
+		root = os.getcwd()
 	result = path
 	if not os.path.isabs(result):
-		result = os.path.join(currdir, result)
+		result = os.path.join(root, result)
 	return result
 
 ##
@@ -93,6 +94,8 @@ if not os.path.exists(jsonpath):
 with open(jsonpath) as f:
 	data = json.load(f)
 
+jsondir = os.path.split(jsonpath)[0]
+
 ##
 # Initialize
 ##
@@ -100,6 +103,8 @@ submissionsdir = os.path.join(currdir,"submissions") # directory where submissio
 srcdir = os.path.join(currdir, "src") # directory where the assignments will be compiled, run and unit tested 1 by 1.
 javadir = os.path.join(srcdir,"main","java")
 testdir = os.path.join(srcdir,"test","java")
+reportsdir = os.path.join(currdir,"reports")
+detaileddir = os.path.join(reportsdir, "detailed")
 
 # check submissions directory already exit
 if os.path.exists(submissionsdir):
@@ -119,6 +124,13 @@ if os.path.exists(srcdir):
 	else:
 		sys.exit("Program terminated")
 
+# check reports directory already exit
+if os.path.exists(reportsdir):
+	delete = raw_input("reports directory exists and must be deleted before proceding. Do you wish to delete it (Y, N)? Y: ")
+	if delete.lower() != "n":
+		shutil.rmtree(reportsdir)
+	else:
+		sys.exit("Program terminated")
 ##
 # Parse JSON file
 ##
@@ -135,7 +147,7 @@ if "tests" not in data:
 
 testFiles = []
 for f in data["tests"]:
-	testFiles.append(getPath(f))
+	testFiles.append(getPath(f, root = jsondir))
 
 ##
 # Parse support files
@@ -143,13 +155,13 @@ for f in data["tests"]:
 supportFiles = []
 if "supportFiles" in data:
 	for f in data["supportFiles"]:
-		supportFiles.append(getPath(f))
+		supportFiles.append(getPath(f, root = jsondir))
 
 # Handle moodle assignment
 if assignmentType == "moodle":
 	if "zip" not in data:
-		 parser.error("Assignment type is \"moodle\" but \"zip\" was not defined".format(zippath))
-	zippath = getPath(data["zip"])
+		 parser.error("Assignment type is \"moodle\" but \"zip\" was not defined")
+	zippath = getPath(data["zip"], root = jsondir)
 	if not os.path.exists(zippath):
 		 parser.error("{0} does not exist".format(zippath))
 	if not os.path.splitext(zippath)[1] == ".zip":
@@ -169,16 +181,16 @@ if assignmentType == "moodle":
 # Handle individual submissions (default)
 elif assignmentType == "default":
 	if "submissions" not in data:
-		 parser.error("Assignment type is \"default\" but \"submissions\" was not defined".format(zippath))
+		 parser.error("Assignment type is \"default\" but \"submissions\" was not defined")
+	javaFiles = []
 	for submission in data["submissions"]:
-		fname = os.path.split(submission)[-1]
-		shutil.copyfile(submission, os.path.join(submissionsdir,fname))
-	javaFiles = data["submissions"]
+		javaFiles.append(getPath(submission, root = jsondir))
+		fname = os.path.split(javaFiles[-1])[-1]
+		shutil.copyfile(javaFiles[-1], os.path.join(submissionsdir,fname))
+
 	assignments["default"] = Assignment(javaFiles, supportFiles, testFiles)
 
 
-reportsdir = os.path.join(currdir,"reports")
-detaileddir = os.path.join(reportsdir, "detailed")
 
 for name in assignments.keys():
 	if os.path.exists(srcdir):
@@ -235,15 +247,18 @@ for name in assignments.keys():
 	if retcode == 0:
 		buildPath = os.path.join(currdir, "build")
 		testResultsPath = os.path.join(buildPath, "test-results")
-		buildReportPath = os.path.join(buildPath, "reports/")
+		buildReportPath = os.path.join(buildPath, "reports")
 		styleReportPath = os.path.join(buildReportPath, "checkstyle")
 
 		# If "reports/detailed" directory does not exist, create it
 		if not os.path.exists(detaileddir):
 			os.makedirs(detaileddir)
+		
+		os.chdir(buildPath)
 		zipFile = os.path.join(detaileddir, reportName + ".zip")
-		args = ["zip", "-r", zipFile, buildReportPath]
+		args = ["zip", "-r", zipFile, "reports/"]
 		subprocess.call(args)
+		os.chdir(currdir)
 
 		# Parse the test results XML
 		for junitName in junitNames:
