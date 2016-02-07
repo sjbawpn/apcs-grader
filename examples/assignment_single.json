@@ -5,6 +5,7 @@
 			  "../single/File2.java",
 			  "../single/File3.java"],
 	"tests" : [ "../single/test/TestJunit.java" ],
+    "supportFiles" : [".../single/support/Support.java"],
 	"verbose" : true,
 	"addSrc" : false
 }
