@@ -37,11 +37,19 @@ class JavaFile:
 		#TODO A better way to parse the file is to create a class tree but that seems overkill for this project
 		for line in self.lines:
 			line = line.strip()
-			code = line.split("//")[0] 
+			code = line.split("//")[0]
+			code = code.split("/*")[0] 
+			code = code.split("*")[0]
 			if self.mainClass == "" and "class" in code:
 				prefix = code.split("{")[0]
 				words = prefix.split()
 				idx = words.index("class")
+				if idx >= 0:
+					self.mainClass = words[idx+1]
+			if self.mainClass == "" and "interface" in code:
+				prefix = code.split("{")[0]
+				words = prefix.split()
+				idx = words.index("interface")
 				if idx >= 0:
 					self.mainClass = words[idx+1]
 			

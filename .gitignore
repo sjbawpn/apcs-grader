@@ -48,3 +48,11 @@ Temporary Items
 
 #Python
 *.pyc
+
+#Zip files
+*.zip
+# assignment directories
+build
+src
+submissions
+gradle-2.10
