@@ -3,7 +3,7 @@ import os
 from zipfile import ZipFile
 import sys
 
-gradle_version = "2.10"
+gradle_version = "2.11"
 gradle_path = "gradle-{0}".format(gradle_version)
 
 def install_gradle(path, version = gradle_version):

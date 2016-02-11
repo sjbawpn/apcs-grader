@@ -75,11 +75,15 @@ def reportStyleResults(report, results):
 
         for error in errors:
             line = error.attributes["line"].value
-            column = error.attributes["column"].value
+            if "column" in error.attributes.keys():
+                column = error.attributes["column"].value
             severity = error.attributes["severity"].value
             message = error.attributes["message"].value
             # source = error.attributes["source"].value # (Unused)
-            report.add("\t\t{0}: {1} in line:{2}, column:{3}".format(severity.capitalize(),message,line,column))
+            if "column" in error.attributes.keys():
+                report.add("\t\t{0}: {1} in line:{2}, column:{3}".format(severity.capitalize(),message,line,column))
+            else:
+                report.add("\t\t{0}: {1} in line:{2}".format(severity.capitalize(),message,line))
         i = i + 1
 
 ##

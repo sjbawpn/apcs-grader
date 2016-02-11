@@ -3,8 +3,19 @@
 	"-//Puppy Crawl//DTD Check Configuration 1.3//EN" 
 	"http://www.puppycrawl.com/dtds/configuration_1_3.dtd"> 
 <module name="Checker">
-	<module name="FileTabCharacter"/>
 	<module name="TreeWalker">
-		<module name="UnusedImports"/> 
+        <module name="AvoidNestedBlocks"/>
+        <module name="CommentsIndentation"/>
+        <module name="DefaultComesLast"/>
+        <module name="EmptyStatement"/>
+        <module name="Indentation"/>
+        <module name="JavaNCSS"/>
+        <module name="LineLength"/>
+        <module name="MemberName"/>
+        <module name="MethodName"/>
+        <module name="PackageName"/>
+        <module name="StringLiteralEquality"/>
+		<module name="UnusedImports"/>
+                     
 	</module>
 </module>
