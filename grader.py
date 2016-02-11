@@ -13,6 +13,8 @@ import json
 from pprint import pprint
 from xml.dom import minidom
 from zipfile import ZipFile
+from zipfile import ZIP_DEFLATED
+from glob import glob
 ##
 #    Helper function to resolve a given path
 ##
@@ -155,28 +157,43 @@ if "tests" not in data:
 
 testFiles = []
 for f in data["tests"]:
-    testFiles.append(getPath(f, root = jsondir))
+    testFiles = testFiles + glob(f)
+testFiles = list(set(testFiles))
+#create absolute file
+testFiles = [getPath(x, root = jsondir) for x in testFiles]
 
 ##
 # Parse support files
 ##
 supportFiles = []
-if "supportFiles" in data:
-    for f in data["supportFiles"]:
-        supportFiles.append(getPath(f, root = jsondir))
+if "support" in data:
+    for f in data["support"]:
+        supportFiles = supportFiles + glob(f)
+# remove duplicates
+supportFiles = list(set(supportFiles))
+#create absolute file
+supportFiles = [getPath(x, root = jsondir) for x in supportFiles]
 
 # Handle moodle assignment
 if assignmentType == "moodle":
-    if "zip" not in data:
-         parser.error("Assignment type is \"moodle\" but \"zip\" was not defined")
-    zippath = getPath(data["zip"], root = jsondir)
-    if not os.path.exists(zippath):
-         parser.error("{0} does not exist".format(zippath))
-    if not os.path.splitext(zippath)[1] == ".zip":
-        parser.error("{0} not a zip file".format(zippath))
+    if "submissions" not in data:
+         sys.exit("Error: Assignment type is \"moodle\" but \"submissions\" was not defined")
+    submissions = data["submissions"]
+    if submissions[-1] == "*":
+        submissions = submissions + ".zip"
+    submissions = glob(submissions)
+    if len(submissions) == 0:
+        sys.exit("Error: {0} could not resolve to valid file".format(data["submissions"]))
+    if len(submissions) > 1:
+        print("Warning: multiple files were resolved. Using the first one: {0}".format(submissions[0]))
+    submissions = getPath(submissions[0], root = jsondir)
+    if not os.path.exists(submissions):
+        sys.exit("Error: {0} does not exist".format(submissions))
+    if not os.path.splitext(submissions)[1] == ".zip":
+        sys.exit("Error: {0} not a zip file".format(submissions))
     
     # Extract
-    with ZipFile(zippath, 'r') as archive:
+    with ZipFile(submissions, 'r') as archive:
         archive.extractall(submissionsdir)
     submissions = os.listdir(submissionsdir)
     students = []
@@ -194,15 +211,21 @@ elif assignmentType == "default":
          parser.error("Assignment type is \"default\" but \"submissions\" was not defined")
     javaFiles = []
     for submission in data["submissions"]:
-        javaFiles.append(getPath(submission, root = jsondir))
-        fname = os.path.split(javaFiles[-1])[-1]
-        shutil.copyfile(javaFiles[-1], os.path.join(submissionsdir,fname))
+        javaFiles = javaFiles + glob(submission)
+    # remove duplicates
+    javaFiles = list(set(javaFiles))
+    # create absolute file
+    javaFiles = [getPath(x, root = jsondir) for x in javaFiles]
+    
+    # Copy files to submissions dir
+    for javaFile in javaFiles:
+        fname = os.path.split(javaFile)[-1]
+        shutil.copyfile(javaFile, os.path.join(submissionsdir,fname))
 
     assignments["default"] = Assignment(javaFiles, supportFiles, testFiles)
 
-
-
 for name in assignments.keys():
+    done = False
     if os.path.exists(srcdir):
         shutil.rmtree(srcdir)
     os.makedirs(javadir)
@@ -212,40 +235,113 @@ for name in assignments.keys():
     report = Report(reportName + ".txt", data["verbose"])
     assignment = assignments[name]
     
-    # Copy support files
-    for support in assignment.support:
-        try:
-            javaFile = JavaFile(support)
-            javaFile.write(javadir)
-        except (TypeError, ValueError) as err:
-            report.add(str(err))
-            report.flag()
-            report.submit()
+    package = None
+    packagedir = ""
+    # Handle submission
+    javaFiles = []
+    resourceFiles = []
+    for submission in assignment.main:
+        if os.path.splitext(submission)[-1].lower() == ".java":
+            javaFiles.append(submission)
+        else:
+            resourceFiles.append(submission)
 
+    if len(javaFiles) == 0:
+        report.add("Error: No java files found for submission: {0}".format(name))
+        report.flag()
+        report.submit()
+        continue
+        
+    filesToGrade = []
+    
+    try:
+        for file in javaFiles:
+            javaFile = JavaFile(file)
+            if package == None:
+                package = javaFile.getPackage()
+                packagedir = javaFile.getPackagePath()
+            elif package != javaFile.getPackage():
+                report.add("Error: Package name:{0} does not match a previously resolved package name: {1}".format(javaFile.getPackage(), package))
+                javaFile.setPackage(package)
+            javaFile.write(javadir)
+            filesToGrade.append(javaFile)
+    except (TypeError, ValueError) as err:
+        report.add(str(err))
+        report.flag()
+        report.submit()
+        continue
+    
+    for file in resourceFiles:
+        path = os.path.join(javadir, packagedir)
+        if not os.path.exists(path):
+            os.makedirs(path)
+        
+        fname = os.path.split(file)[-1]
+        shutil.copyfile(file, os.path.join(path,fname))
+               
+    # Copy support files
+    javaFiles = []
+    resourceFiles = []
+    
+    # Seperate java files from the rest of the files
+    for submission in assignment.support:
+        if os.path.splitext(submission)[-1].lower() == ".java":
+            javaFiles.append(submission)
+        else:
+            resourceFiles.append(submission)  
+    try:
+        for file in javaFiles:
+            javaFile = JavaFile(file)
+            if javaFile.getPackage() != package:
+                javaFile.setPackage(package)
+            javaFile.write(javadir)
+    except (TypeError, ValueError) as err:
+        report.add(str(err))
+        report.flag()
+        report.submit()
+        continue
+    
+    for file in resourceFiles:
+        path = os.path.join(javadir, packagedir)
+        if not os.path.exists(path):
+            os.makedirs(path)
+        
+        fname = os.path.split(file)[-1]
+        shutil.copyfile(file, os.path.join(path,fname))
+    
     # Copy test files
+    javaFiles = []
+    resourceFiles = []
     junitNames = []
-    for test in assignment.tests:
-        try:
-            javaFile = JavaFile(test)
+    
+     # Seperate java files from the rest of the files
+    for submission in assignment.tests:
+        if os.path.splitext(submission)[-1].lower() == ".java":
+            javaFiles.append(submission)
+        else:
+            resourceFiles.append(submission)
+    
+    try:        
+        for file in javaFiles:  
+            javaFile = JavaFile(file)
+            if javaFile.getPackage() != package:
+                javaFile.setPackage(package)
             javaFile.write(testdir)
             junitNames.append(javaFile.getFullName())
-        except (TypeError, ValueError) as err:
-            report.add(str(err))
-            report.flag()
-            report.submit()
-
-    # Handle submission
-    submissionFiles = []
-    for submission in assignment.main:
-        try:
-            javaFile = JavaFile(submission)
-            javaFile.write(javadir)
-            submissionFiles.append(javaFile)
-        except (TypeError, ValueError) as err:
-            report.add(str(err))
-            report.flag()
-            report.submit()
-
+    except (TypeError, ValueError) as err:
+        report.add(str(err))
+        report.flag()
+        report.submit()
+        continue
+        
+    for file in resourceFiles:
+        path = os.path.join(testdir, packagedir)
+        if not os.path.exists(path):
+            os.makedirs(path)
+        
+        fname = os.path.split(file)[-1]
+        shutil.copyfile(file, os.path.join(path,fname))
+            
     ## 
     #     Compile and run
     ##
@@ -266,16 +362,27 @@ for name in assignments.keys():
         if not os.path.exists(detaileddir):
             os.makedirs(detaileddir)
         
-        dir = os.path.join(buildPath, reports)
+        dir = os.path.join(buildPath, "reports")
         zipF = os.path.join(detaileddir, reportName + ".zip")
         with ZipFile(zipF, 'w') as zip:
             for root, dirs, files in os.walk(dir):
                 abs_root = os.path.abspath(root)
+                relative_root = abs_root[len(buildPath):]
                 for f in files:
                     fullpath = os.path.join(abs_root, f)
-                    archive_name = os.path.join(root,f)
-                    zip.write(fullpath, archive_name, zipfile.ZIP_DEFLATED)
-
+                    archive_name = os.path.join(relative_root,f)
+                    zip.write(fullpath, archive_name, ZIP_DEFLATED)
+        
+        # Copy src
+        zipF = os.path.join(detaileddir, reportName + ".zip")
+        with ZipFile(zipF, 'a') as zip:
+            for root, dirs, files in os.walk(srcdir):
+                abs_root = os.path.abspath(root)
+                relative_root = abs_root[len(srcdir):]
+                for f in files:
+                    fullpath = os.path.join(abs_root, f)
+                    archive_name = os.path.join(relative_root,f)
+                    zip.write(fullpath, archive_name, ZIP_DEFLATED)
         # Parse the test results XML
         for junitName in junitNames:
             junitResult = os.path.join(testResultsPath, "TEST-{0}.xml".format(junitName))
@@ -308,7 +415,7 @@ for name in assignments.keys():
     #    Submission report
     ##
 
-    for javaFile in submissionFiles:
+    for javaFile in filesToGrade:
         report.addTitle(javaFile.getMainClass()+".java")
 
         report.add("Main Class name = {0}".format(javaFile.getMainClass()))

@@ -49,10 +49,16 @@ Temporary Items
 #Python
 *.pyc
 
+#Java
+*.java
+
 #Zip files
 *.zip
+
 # assignment directories
 build
 src
 submissions
-gradle-2.10
+gradle-*
+reports
+source

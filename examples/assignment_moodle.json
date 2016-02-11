@@ -2,9 +2,9 @@
 
 	"name" : "ExampleName",
 	"type" : "moodle",
-	"zip" : "../moodle/example.zip",
-	"tests" : [ "../example/test/TestJunit.java" ],
-    "supportFiles" : [".../single/support/Support.java"],
+	"submissions" : "main/*.zip",
+	"tests" : [ "tests/*" ],
+    "support" : ["support/*"],
 	"verbose" : true,
 	"addSrc" : false
 }

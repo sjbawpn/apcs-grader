@@ -8,7 +8,7 @@ class Assignment:
 		#TODO check input
 		for fpath in main:
 			if not os.path.exists(fpath):
-				raise IOError("Error: Java file \"{0}\" does not exist".format(fpath))
+				raise IOError("Error: Main file \"{0}\" does not exist".format(fpath))
 		for fpath in support:
 			if not os.path.exists(fpath):
 				raise IOError("Error: Support file \"{0}\" does not exist".format(fpath))

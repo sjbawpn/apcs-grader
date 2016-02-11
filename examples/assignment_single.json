@@ -1,11 +1,9 @@
 {
 
 	"name" : "ExampleName",
-	"submissions" : [ "../single/File1.java",
-			  "../single/File2.java",
-			  "../single/File3.java"],
-	"tests" : [ "../single/test/TestJunit.java" ],
-    "supportFiles" : [".../single/support/Support.java"],
+	"submissions" : [ "main/*"],
+	"tests" : [ "test/*" ],
+    "support" : ["support/*"],
 	"verbose" : true,
 	"addSrc" : false
 }
