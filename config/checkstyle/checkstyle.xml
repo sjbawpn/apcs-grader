@@ -15,7 +15,6 @@
         <module name="MethodName"/>
         <module name="PackageName"/>
         <module name="StringLiteralEquality"/>
-		<module name="UnusedImports"/>
-                     
+        <module name="UnusedImports"/>                    
 	</module>
 </module>
